@@ -2,6 +2,7 @@ import { ArrowLeft, CheckCircle2, UserRound } from 'lucide-react'
 import { Link, Navigate } from 'react-router-dom'
 import { SimulationPlaceholder } from '../components/SimulationPlaceholder'
 import { AllocationSimulation } from '../components/allocation/AllocationSimulation'
+import { IdCowSimulation } from '../components/thrashing/IdCowSimulation'
 import { PageSizeSimulation } from '../components/page-size/PageSizeSimulation'
 import { ThrashingSimulation } from '../components/thrashing/ThrashingSimulation'
 import { topicById } from '../data/topics'
@@ -31,7 +32,7 @@ export function TopicPage({ topicId }: { topicId: string }) {
         </header>
 
         <section className="mt-12">
-          {topic.id === 'thrashing' ? <ThrashingSimulation /> : topic.id === 'local-global' ? <AllocationSimulation /> : topic.id === 'page-size' ? <PageSizeSimulation /> : <SimulationPlaceholder />}
+          {topic.id === 'thrashing' ? <ThrashingSimulation /> : topic.id === 'local-global' ? <AllocationSimulation /> : topic.id === 'page-size' ? <PageSizeSimulation /> : topic.id === 'id-cow' ? <IdCowSimulation /> : <SimulationPlaceholder />}
         </section>
 
         <section className="mt-16">
