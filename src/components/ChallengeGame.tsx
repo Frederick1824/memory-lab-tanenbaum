@@ -76,7 +76,7 @@ function normalizeRanking(entries: RankingEntry[]) {
     const current = bestByName.get(key)
     if (!current || entry.score > current.score) bestByName.set(key, entry)
   }
-  return [...bestByName.values()].sort((a, b) => b.score - a.score).slice(0, 10)
+  return [...bestByName.values()].sort((a, b) => b.score - a.score)
 }
 
 function readRanking(): RankingEntry[] {
@@ -611,15 +611,27 @@ function LevelResult({ level, title, detail, earned, onContinue }: { level: numb
 }
 
 function RankingTable({ ranking, highlightName, error }: { ranking: RankingEntry[]; highlightName: string; error: string }) {
+  const [showAll, setShowAll] = useState(false)
+  const visibleRanking = showAll ? ranking : ranking.slice(0, 10)
+  const hasMore = ranking.length > 10
+
   return (
     <section className="rounded-2xl border border-white/[0.08] bg-panel/60 p-5">
-      <div className="mb-4 flex items-center gap-2"><Trophy size={17} className="text-cyan" /><h2 className="text-sm font-semibold text-slate-200">Ranking general del curso</h2></div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2"><Trophy size={17} className="text-cyan" /><h2 className="text-sm font-semibold text-slate-200">Ranking general del curso</h2></div>
+        {hasMore && <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">{ranking.length} jugadores</span>}
+      </div>
       {error && <p className="mb-3 text-xs text-amber-300" role="status">{error}</p>}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs"><thead className="border-b border-white/[0.08] font-mono uppercase tracking-wider text-slate-600"><tr><th className="pb-2">#</th><th className="pb-2">Nombre</th><th className="pb-2 text-right">Puntaje</th></tr></thead>
-          <tbody className="divide-y divide-white/[0.05]">{ranking.length ? ranking.map((entry, index) => <tr key={entry.id || `${entry.name}-${index}`} className={entry.name.toLowerCase() === highlightName.trim().toLowerCase() ? 'text-lime' : 'text-slate-400'}><td className="py-2.5 font-mono text-slate-600">{index + 1}</td><td className="py-2.5">{entry.name}</td><td className="py-2.5 text-right font-mono">{entry.score} pts</td></tr>) : <tr><td colSpan={3} className="py-5 text-center text-slate-600">Todavía no hay puntajes. ¡Sé el primero!</td></tr>}</tbody>
+          <tbody className="divide-y divide-white/[0.05]">{visibleRanking.length ? visibleRanking.map((entry, index) => <tr key={entry.id || `${entry.name}-${index}`} className={entry.name.toLowerCase() === highlightName.trim().toLowerCase() ? 'text-lime' : 'text-slate-400'}><td className="py-2.5 font-mono text-slate-600">{index + 1}</td><td className="py-2.5">{entry.name}</td><td className="py-2.5 text-right font-mono">{entry.score} pts</td></tr>) : <tr><td colSpan={3} className="py-5 text-center text-slate-600">Todavía no hay puntajes. ¡Sé el primero!</td></tr>}</tbody>
         </table>
       </div>
+      {hasMore && (
+        <button type="button" className="secondary-button mt-4 w-full" onClick={() => setShowAll((current) => !current)}>
+          {showAll ? 'Ver solo top 10' : `Ver ranking completo (${ranking.length})`}
+        </button>
+      )}
     </section>
   )
 }
