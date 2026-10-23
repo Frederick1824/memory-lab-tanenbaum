@@ -10,11 +10,13 @@ const PAGE_SIZES = [
   { bytes: 8192, label: '8 KB' },
   { bytes: 16384, label: '16 KB' },
 ]
-const ENTRY_SIZES = [4, 8, 16]
 const COW_CHALLENGES = [
-  { actor: 'Hijo', action: 'lee', page: 0, question: 'El hijo lee una página de datos compartida. ¿El kernel debe crear una copia física?' },
-  { actor: 'Padre', action: 'escribe', page: 1, question: 'Padre e hijo aún comparten P1. El padre intenta escribir. ¿Se debe crear una copia?' },
-  { actor: 'Hijo', action: 'escribe', page: 1, question: 'Tras la escritura anterior, el hijo es el único que conserva el marco original de P1. ¿Necesita el kernel duplicarlo para permitir la escritura?' },
+  { actor: 'Hijo', action: 'lee', page: 1, question: 'El hijo lee la página P1 compartida. ¿El kernel debe crear una copia física?' },
+  { actor: 'Padre', action: 'escribe', page: 2, question: 'Padre e hijo comparten P2. El padre intenta escribir. ¿Se debe crear una copia?' },
+  { actor: 'Hijo', action: 'escribe', page: 2, question: 'Después de la escritura del padre, el hijo conserva la referencia original de P2. ¿Hace falta duplicarla para poder escribir?' },
+  { actor: 'Hijo', action: 'escribe', page: 3, question: 'El hijo intenta escribir por primera vez sobre la página P3 compartida. ¿Se debe crear una copia?' },
+  { actor: 'Padre', action: 'lee', page: 0, question: 'El padre solamente lee la página P0 compartida. ¿Hace falta crear una copia?' },
+  { actor: 'Hijo', action: 'escribe', page: 1, question: 'La página P1 sigue compartida y el hijo intenta escribir. ¿Se debe crear una copia privada?' },
 ]
 const PROCESS_COLORS = ['bg-cyan', 'bg-fuchsia-400', 'bg-amber-300', 'bg-emerald-400', 'bg-violet-400', 'bg-sky-400']
 const LETTERS = ['A', 'B', 'C', 'D']
@@ -50,17 +52,11 @@ function shuffle<T>(items: T[]) {
 }
 
 function createPageSizeScenarios(): PageSizeScenario[] {
-  const scenarios: PageSizeScenario[] = []
-  while (scenarios.length < 3) {
-    const targetSize = PAGE_SIZES[Math.floor(Math.random() * PAGE_SIZES.length)].bytes
-    const entryBytes = ENTRY_SIZES[Math.floor(Math.random() * ENTRY_SIZES.length)]
-    const theoreticalSize = targetSize * (0.8 + Math.random() * 0.4)
-    const bytes = Math.round((theoreticalSize ** 2) / (2 * entryBytes))
-    if (!scenarios.some((scenario) => scenario.bytes === bytes && scenario.entryBytes === entryBytes)) {
-      scenarios.push({ bytes, entryBytes })
-    }
-  }
-  return shuffle(scenarios)
+  return [
+    { bytes: 524288, entryBytes: 8 },
+    { bytes: 2097152, entryBytes: 8 },
+    { bytes: 8388608, entryBytes: 8 },
+  ]
 }
 
 function createInitialCowMappings(): CowMapping[][] {
@@ -158,6 +154,7 @@ export function ChallengeGame() {
   const [questionIndex, setQuestionIndex] = useState(0)
   const [questionScore, setQuestionScore] = useState(0)
   const [questionFeedback, setQuestionFeedback] = useState<{ correct: boolean; earned: number; selected: number } | null>(null)
+  const [questionStartTime, setQuestionStartTime] = useState(() => Date.now())
 
   useEffect(() => {
     try {
@@ -172,7 +169,7 @@ export function ChallengeGame() {
     const timer = window.setInterval(() => {
       setLoadState((current) => {
         const nextSeconds = Math.min(30, current.seconds + 1)
-        const nextProcesses = nextSeconds % 2 === 0 && current.processes.length < 10
+        const nextProcesses = nextSeconds % 5 === 0 && current.processes.length < 6
           ? [...current.processes, { id: current.processes.length, workingSet: 3 + Math.floor(Math.random() * 3), active: true }]
           : current.processes
         const { cpu } = getProcessStats(nextProcesses)
@@ -219,6 +216,7 @@ export function ChallengeGame() {
     setQuestionIndex(0)
     setQuestionScore(0)
     setQuestionFeedback(null)
+    setQuestionStartTime(Date.now())
     setStorageError('')
     setStage('thrashing')
   }
@@ -240,7 +238,7 @@ export function ChallengeGame() {
     const optimalIndex = getOptimalPageIndex(currentSegment.bytes, currentSegment.entryBytes)
     const optimalSize = Math.sqrt(2 * currentSegment.bytes * currentSegment.entryBytes)
     const optimal = pageSizeIndex === optimalIndex
-    const earned = optimal ? 100 : 0
+    const earned = optimal ? 100 : 40
     setPageRoundScore((current) => current + earned)
     setPageFeedback({
       optimal,
@@ -270,7 +268,7 @@ export function ChallengeGame() {
     const isWrite = currentChallenge.action === 'escribe'
     const shouldCopy = isWrite && actorMapping === 'shared' && otherMapping === 'shared'
     const correct = userSaysCopy === shouldCopy
-    if (correct) setCowScore((current) => current + 100)
+    if (correct) setCowScore((current) => current + 50)
     if (shouldCopy) setCowCopies((current) => current + 1)
 
     if (isWrite && actorMapping !== 'private') {
@@ -296,13 +294,16 @@ export function ChallengeGame() {
     setScore((current) => current + cowScore)
     setQuestionIndex(0)
     setQuestionScore(0)
+    setQuestionStartTime(Date.now())
     setStage('quiz')
   }
 
   function answerQuestion(selected: number) {
     if (questionFeedback) return
     const correct = selected === currentQuestion.answer
-    const earned = correct ? 35 : 0
+    const elapsedSeconds = Math.floor((Date.now() - questionStartTime) / 1000)
+    const speedBonus = correct ? Math.max(0, 10 - elapsedSeconds) : 0
+    const earned = correct ? 25 + speedBonus : 0
     if (correct) setQuestionScore((current) => current + earned)
     setQuestionFeedback({ correct, earned, selected })
     setStage('quiz-feedback')
@@ -360,7 +361,7 @@ export function ChallengeGame() {
               <span className="inline-flex items-center gap-2 rounded-full border border-lime/20 bg-lime/[0.07] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-lime"><CircleDot size={12} /> Desafío interactivo</span>
               <h2 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">¿El concepto quedó en memoria?</h2>
               <p className="mt-3 max-w-2xl leading-relaxed text-slate-400">Resolvé cuatro retos sobre gestión de memoria: estabilizá la carga del sistema, elegí el tamaño de página, anticipá las copias COW y cerrá con una trivia.</p>
-              <p className="mt-3 max-w-2xl text-xs leading-relaxed text-slate-500">Puntaje por desempeño: 10 puntos por cada segundo con CPU estable, 100 por cada respuesta correcta de tamaño de página o COW y 35 por acierto en la trivia. Las respuestas incorrectas no suman.</p>
+              <p className="mt-3 max-w-2xl text-xs leading-relaxed text-slate-500">Puntaje máximo: 1180 puntos. Nivel 1: hasta 300 por CPU estable; Nivel 2: hasta 300; Nivel 3: 50 por cada predicción COW correcta; trivia: 25 por acierto más hasta 10 puntos de bonus por velocidad.</p>
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 {[
                   { icon: Cpu, title: '01 · Control de carga', detail: 'Mantené la CPU útil y evitá thrashing.' },
@@ -384,7 +385,7 @@ export function ChallengeGame() {
         <>
           <LevelHeader level={1} title="Control de carga y thrashing" subtitle={`${seconds}/30 s · ${goodSeconds * 10} pts acumulados`} score={score + goodSeconds * 10} />
           <section className="space-y-5 rounded-2xl border border-white/[0.08] bg-panel/70 p-5">
-            <p className="text-sm leading-relaxed text-slate-400">Mantené la CPU útil al <strong className="text-slate-200">70% o más</strong>. Cuando la demanda de working sets supera los 16 marcos, aparece thrashing. Cada 2 segundos puede entrar un proceso nuevo, hasta un máximo de 10: activá o pausá procesos para ajustar la carga.</p>
+            <p className="text-sm leading-relaxed text-slate-400">Mantené la CPU útil al <strong className="text-slate-200">70% o más</strong>. Cuando la demanda de working sets supera los 16 marcos, aparece thrashing. Cada 5 segundos entra un proceso nuevo, hasta un máximo de 6: mandalo a disco o traelo de vuelta para ajustar la carga.</p>
             <div>
               <div className="mb-2 flex flex-wrap justify-between gap-2 font-mono text-[10px] uppercase tracking-wider text-slate-500"><span>RAM · 16 marcos</span><span className={processStats.thrashing ? 'text-rose-300' : ''}>Demanda {processStats.demand}/16 {processStats.thrashing ? '· THRASHING' : ''}</span></div>
               <div className="grid grid-cols-4 gap-1.5 rounded-xl border border-white/[0.06] bg-black/20 p-3 sm:grid-cols-8">
@@ -451,7 +452,7 @@ export function ChallengeGame() {
               <div className="grid grid-cols-2 gap-3"><button type="button" className="primary-button w-full" onClick={() => answerCow(true)}>Sí, se copia</button><button type="button" className="secondary-button w-full" onClick={() => answerCow(false)}>No se copia</button></div>
             ) : cowFeedback && (
               <div className={`rounded-xl border p-4 ${cowFeedback.correct ? 'border-lime/20 bg-lime/[0.04]' : 'border-rose-300/20 bg-rose-300/[0.04]'}`} role="status" aria-live="polite">
-                <p className={`text-sm font-semibold ${cowFeedback.correct ? 'text-lime' : 'text-rose-300'}`}>{cowFeedback.correct ? '¡Correcto! +100 puntos' : 'Respuesta incorrecta.'}</p>
+                <p className={`text-sm font-semibold ${cowFeedback.correct ? 'text-lime' : 'text-rose-300'}`}>{cowFeedback.correct ? '¡Correcto! +50 puntos' : 'Respuesta incorrecta.'}</p>
                 <p className="mt-2 text-xs leading-relaxed text-slate-400">{cowFeedback.copied ? 'La escritura en una página compartida genera una excepción de protección. Como ambos procesos apuntaban al marco, el kernel crea una copia privada y actualiza las tablas de páginas.' : cowFeedback.action === 'lee' ? 'Leer una página compartida no genera una copia ni cambia los permisos.' : cowFeedback.fault ? 'La escritura genera una excepción, pero el marco ya tiene una sola referencia. El kernel puede habilitar lectura-escritura sin duplicar los datos.' : 'La página ya es privada y de lectura-escritura; no hace falta una copia ni una nueva excepción.'}</p>
                 <p className="mt-2 text-xs font-medium text-slate-300">{cowFeedback.fault ? 'Se genera una excepción de protección.' : 'No se genera una excepción de protección.'}</p>
                 <button type="button" className="secondary-button mt-4 w-full" onClick={advanceCow}>{cowStep < COW_CHALLENGES.length - 1 ? 'Siguiente pregunta' : 'Ir a la trivia final'} <ArrowRight size={15} /></button>
@@ -482,6 +483,7 @@ export function ChallengeGame() {
                   if (questionIndex < challengeQuestions.length - 1) {
                     setQuestionIndex((current) => current + 1)
                     setQuestionFeedback(null)
+                    setQuestionStartTime(Date.now())
                     setStage('quiz')
                   } else finishGame()
                 }}>{questionIndex < challengeQuestions.length - 1 ? 'Siguiente pregunta' : 'Ver resultado final'} <ArrowRight size={15} /></button>
