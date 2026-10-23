@@ -58,7 +58,7 @@ export const topics: Topic[] = [
     order: '04',
     title: 'Espacios I/D + páginas compartidas + Copy-on-Write',
     shortTitle: 'I/D + COW',
-    member: 'Dillan',
+    member: 'Dilan',
     description: 'Separar, proteger y compartir memoria sin duplicarla antes de tiempo.',
     detail: 'Recorreremos la separación de instrucciones y datos, el uso seguro de páginas compartidas y la copia diferida que hace eficiente la creación de procesos.',
     path: '/id-cow',
