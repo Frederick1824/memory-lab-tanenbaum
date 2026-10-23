@@ -1,7 +1,6 @@
 import { ArrowRight, Check, CircleDot, Copy, Cpu, RotateCcw, Sparkles, Trophy } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { challengeQuestions } from '../data/challengeQuestions'
-import { supabase } from '../lib/supabase'
 
 const RANKING_KEY = 'memory_lab_ranking_v1'
 const PAGE_SIZES = [
@@ -104,16 +103,33 @@ function readRanking(): RankingEntry[] {
     .slice(0, 10)
 }
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+
+function getSupabaseHeaders() {
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+    throw new Error('Supabase environment variables are missing.')
+  }
+
+  return {
+    apikey: SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+    'Content-Type': 'application/json',
+  }
+}
+
 async function fetchSharedRanking(): Promise<RankingEntry[]> {
-  const { data, error } = await supabase
-    .from('scores')
-    .select('id, name, score, created_at')
-    .order('score', { ascending: false })
-    .limit(100)
+  if (!SUPABASE_URL) throw new Error('Supabase URL is missing.')
 
-  if (error) throw error
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/scores?select=id,name,score,created_at&order=score.desc&limit=100`,
+    { headers: getSupabaseHeaders() },
+  )
 
-  return normalizeRanking((data ?? []).map((entry) => ({
+  if (!response.ok) throw new Error(`Supabase ranking request failed: ${response.status}`)
+
+  const data = await response.json() as Array<{ id: string | number; name: string; score: number; created_at?: string }>
+  return normalizeRanking(data.map((entry) => ({
     id: String(entry.id),
     name: String(entry.name).trim().slice(0, 20),
     score: Math.round(Number(entry.score)),
@@ -122,8 +138,18 @@ async function fetchSharedRanking(): Promise<RankingEntry[]> {
 }
 
 async function saveSharedScore(name: string, score: number) {
-  const { error } = await supabase.from('scores').insert({ name, score })
-  if (error) throw error
+  if (!SUPABASE_URL) throw new Error('Supabase URL is missing.')
+
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/scores`, {
+    method: 'POST',
+    headers: {
+      ...getSupabaseHeaders(),
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({ name, score }),
+  })
+
+  if (!response.ok) throw new Error(`Supabase score insert failed: ${response.status}`)
 }
 
 function getPageSizeMetrics(pageSize: number, segmentSize: number, entryBytes: number) {
