@@ -69,11 +69,11 @@ export function HomePage() {
         <div className="mx-auto max-w-7xl overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-cyan/[0.08] to-lime/[0.03] p-7 sm:p-10">
           <div className="grid items-center gap-8 md:grid-cols-[1fr_auto]">
             <div>
-              <p className="font-mono text-xs uppercase tracking-[0.22em] text-lime">Kernel Challenge · próximamente</p>
+              <p className="font-mono text-xs uppercase tracking-[0.22em] text-lime">Kernel Challenge</p>
               <h2 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">¿El concepto quedó en memoria?</h2>
-              <p className="mt-3 max-w-2xl leading-relaxed text-slate-400">Al final del recorrido, una mini evaluación pondrá a prueba las decisiones que tomaría el kernel. La lógica llegará en una etapa posterior.</p>
+              <p className="mt-3 max-w-2xl leading-relaxed text-slate-400">Cuatro retos interactivos para poner a prueba tus decisiones sobre thrashing, tamaño de página, Copy-on-Write y memoria virtual.</p>
             </div>
-            <Link to="/kernel-challenge" className="secondary-button">Ver adelanto <ArrowRight size={16} /></Link>
+            <Link to="/kernel-challenge" className="secondary-button">Iniciar desafío <ArrowRight size={16} /></Link>
           </div>
         </div>
       </section>
