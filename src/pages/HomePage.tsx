@@ -26,7 +26,7 @@ export function HomePage() {
               <a href="#modulos" className="primary-button group">
                 Iniciar laboratorio <ArrowRight size={17} className="transition group-hover:translate-x-1" />
               </a>
-              <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-slate-600">4 módulos · 1 desafío</span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-slate-600">4 módulos · 4 simulaciones · 1 desafío</span>
             </div>
           </div>
           <MemoryVisualizer />
@@ -39,7 +39,7 @@ export function HomePage() {
             [MonitorUp, 'Visual', 'Conceptos proyectables'],
             [Braces, 'Modular', 'Un tema por integrante'],
             [ShieldCheck, 'Fundamentos', 'Basado en Tanenbaum'],
-            [CircleDot, 'Interactivo', 'Simulaciones por venir'],
+            [CircleDot, 'Interactivo', 'Simulaciones en vivo'],
           ].map(([Icon, title, caption]) => {
             const ItemIcon = Icon as typeof MonitorUp
             return (
@@ -57,7 +57,7 @@ export function HomePage() {
           <SectionHeader
             eyebrow="Mapa del laboratorio"
             title="Cuatro formas de mirar la memoria"
-            description="Cada módulo aísla una decisión crítica del sistema operativo. Recorré el circuito completo o entrá directamente al tema que quieras explorar."
+            description="Cada módulo aísla una decisión crítica del sistema operativo. Recorré el circuito completo en orden o entrá directamente al tema que quieras explorar."
           />
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {topics.map((topic) => <TopicCard key={topic.id} topic={topic} />)}
@@ -71,7 +71,7 @@ export function HomePage() {
             <div>
               <p className="font-mono text-xs uppercase tracking-[0.22em] text-lime">Kernel Challenge</p>
               <h2 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">¿El concepto quedó en memoria?</h2>
-              <p className="mt-3 max-w-2xl leading-relaxed text-slate-400">Cuatro retos interactivos para poner a prueba tus decisiones sobre thrashing, tamaño de página, Copy-on-Write y memoria virtual.</p>
+              <p className="mt-3 max-w-2xl leading-relaxed text-slate-400">Cuatro retos interactivos para poner a prueba decisiones sobre thrashing, tamaño de página, Copy-on-Write y memoria virtual.</p>
             </div>
             <Link to="/kernel-challenge" className="secondary-button">Iniciar desafío <ArrowRight size={16} /></Link>
           </div>
