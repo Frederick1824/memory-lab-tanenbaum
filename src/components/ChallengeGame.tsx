@@ -1,6 +1,7 @@
 import { ArrowRight, Check, CircleDot, Copy, Cpu, RotateCcw, Sparkles, Trophy } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { challengeQuestions } from '../data/challengeQuestions'
+import { supabase } from '../lib/supabase'
 
 const RANKING_KEY = 'memory_lab_ranking_v1'
 const PAGE_SIZES = [
@@ -69,6 +70,16 @@ function getCowMappingLabel(mapping: CowMapping) {
   return 'Compartida · solo lectura'
 }
 
+function normalizeRanking(entries: RankingEntry[]) {
+  const bestByName = new Map<string, RankingEntry>()
+  for (const entry of entries) {
+    const key = entry.name.trim().toLowerCase()
+    const current = bestByName.get(key)
+    if (!current || entry.score > current.score) bestByName.set(key, entry)
+  }
+  return [...bestByName.values()].sort((a, b) => b.score - a.score).slice(0, 10)
+}
+
 function readRanking(): RankingEntry[] {
   const stored = localStorage.getItem(RANKING_KEY)
   if (!stored) return []
@@ -91,6 +102,28 @@ function readRanking(): RankingEntry[] {
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 10)
+}
+
+async function fetchSharedRanking(): Promise<RankingEntry[]> {
+  const { data, error } = await supabase
+    .from('scores')
+    .select('id, name, score, created_at')
+    .order('score', { ascending: false })
+    .limit(100)
+
+  if (error) throw error
+
+  return normalizeRanking((data ?? []).map((entry) => ({
+    id: String(entry.id),
+    name: String(entry.name).trim().slice(0, 20),
+    score: Math.round(Number(entry.score)),
+    date: entry.created_at ? new Date(entry.created_at).toLocaleDateString() : '',
+  })))
+}
+
+async function saveSharedScore(name: string, score: number) {
+  const { error } = await supabase.from('scores').insert({ name, score })
+  if (error) throw error
 }
 
 function getPageSizeMetrics(pageSize: number, segmentSize: number, entryBytes: number) {
@@ -157,10 +190,31 @@ export function ChallengeGame() {
   const [questionStartTime, setQuestionStartTime] = useState(() => Date.now())
 
   useEffect(() => {
-    try {
-      setRanking(readRanking())
-    } catch {
-      setStorageError('No se pudo leer el ranking guardado en este navegador.')
+    let active = true
+
+    async function loadRanking() {
+      try {
+        const sharedRanking = await fetchSharedRanking()
+        if (active) {
+          setRanking(sharedRanking)
+          setStorageError('')
+        }
+      } catch {
+        try {
+          const localRanking = readRanking()
+          if (active) {
+            setRanking(localRanking)
+            setStorageError('No se pudo conectar al ranking compartido. Mostrando el ranking local de este navegador.')
+          }
+        } catch {
+          if (active) setStorageError('No se pudo cargar el ranking compartido ni el ranking local.')
+        }
+      }
+    }
+
+    void loadRanking()
+    return () => {
+      active = false
     }
   }, [])
 
@@ -309,34 +363,36 @@ export function ChallengeGame() {
     setStage('quiz-feedback')
   }
 
-  function finishGame() {
+  async function finishGame() {
     const finalScore = score + questionScore
     const playerName = name.trim().slice(0, 20) || 'Estudiante Anónimo'
     setScore(finalScore)
+
     try {
-      const oldRanking = readRanking()
-      const existingIndex = oldRanking.findIndex((entry) => entry.name.toLowerCase() === playerName.toLowerCase())
-      const updatedRanking = [...oldRanking]
-      if (existingIndex >= 0) {
-        if (finalScore > updatedRanking[existingIndex].score) {
-          updatedRanking[existingIndex] = { ...updatedRanking[existingIndex], score: finalScore, date: new Date().toLocaleDateString() }
-        }
-      } else {
-        updatedRanking.push({
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          name: playerName,
-          score: finalScore,
-          date: new Date().toLocaleDateString(),
-        })
-      }
-      updatedRanking.sort((a, b) => b.score - a.score)
-      const topRanking = updatedRanking.slice(0, 10)
-      localStorage.setItem(RANKING_KEY, JSON.stringify(topRanking))
-      setRanking(topRanking)
+      await saveSharedScore(playerName, finalScore)
+      const sharedRanking = await fetchSharedRanking()
+      setRanking(sharedRanking)
+      localStorage.setItem(RANKING_KEY, JSON.stringify(sharedRanking))
       setStorageError('')
     } catch {
-      setStorageError('No se pudo guardar el puntaje en el ranking del navegador, pero el resultado de esta partida sigue disponible.')
+      try {
+        const localRanking = normalizeRanking([
+          ...readRanking(),
+          {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            name: playerName,
+            score: finalScore,
+            date: new Date().toLocaleDateString(),
+          },
+        ])
+        localStorage.setItem(RANKING_KEY, JSON.stringify(localRanking))
+        setRanking(localRanking)
+        setStorageError('No se pudo guardar el puntaje en el ranking compartido. Se guardó solo en este navegador.')
+      } catch {
+        setStorageError('No se pudo guardar el puntaje en Supabase ni en este navegador, pero el resultado sigue disponible.')
+      }
     }
+
     setStage('result')
   }
 
@@ -485,7 +541,7 @@ export function ChallengeGame() {
                     setQuestionFeedback(null)
                     setQuestionStartTime(Date.now())
                     setStage('quiz')
-                  } else finishGame()
+                  } else void finishGame()
                 }}>{questionIndex < challengeQuestions.length - 1 ? 'Siguiente pregunta' : 'Ver resultado final'} <ArrowRight size={15} /></button>
               </div>
             )}
